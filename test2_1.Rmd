@@ -1,0 +1,177 @@
+---
+title: "test2_1"
+author: "sharon"
+date: "2022-12-12"
+output: html_document
+---
+
+> My question is "are the evicitions in 2020 for New York spatially random or do they exhibit clustering"
+
+> A question for Spatial autocorrelation..."are the densitites of evicitions in New York similar over commnity districts for 2020" 
+
+* we could combine a few of these questions...
+
+> A question for spatial regression..."What are the factors that might lead to variation in evictions across New York in 2020?"
+
+```{r}
+library(tidyverse)
+library(tmap)
+library(geojsonio)
+library(plotly)
+library(rgdal)
+library(broom)
+library(mapview)
+library(crosstalk)
+library(sf)
+library(sp)
+library(spdep)
+library(car)
+library(fs)
+library(janitor)
+library(spatstat)
+
+```
+
+
+```{r}
+#use grafftti3 and shp2
+
+#filter something
+graffiti4<- graffiti3%>%
+filter(str_detect(Closed, "2019")) %>%
+  #filter(str_detect(`Request Type`, "Building"))%>%
+  st_transform(., crs=7131)
+
+#clip
+# spatial filter points within the san fran polygon (sf object)
+#must use st_intersects?
+graffiti_within <- graffiti4[shp2, ,op=st_intersects]
+
+shp_se <- filter(shp2, geoid10=="06075016500")
+graffiti_se <- graffiti4[shp_se, ,op=st_intersects]
+
+tmap_mode("plot")
+tm_shape(shp_se) +
+  tm_polygons(col = NA, alpha = 0.5) +
+tm_shape(graffiti_se) +
+  tm_dots(col = "blue")
+
+
+```
+
+
+```{r}
+#whole nyc
+window <- as.owin(shp2)
+plot(window)
+
+#create a sp object
+graffiti_sp <- graffiti_within %>%
+  as(., 'Spatial')
+
+#create a ppp object
+graffiti_sp.ppp <- ppp(x=graffiti_sp@coords[,1],
+                          y=graffiti_sp@coords[,2],
+                          window=window)
+
+#just one district
+window <- as.owin(shp_se)
+plot(window)
+
+#create a sp object
+graffiti_se_sp <- graffiti_se %>%
+  as(., 'Spatial')
+
+#create a ppp object
+graffiti_se_sp.ppp <- ppp(x=graffiti_se_sp@coords[,1],
+                          y=graffiti_se_sp@coords[,2],
+                          window=window)
+```
+
+
+```{r}
+#ripley k
+#whole nyc
+K1 <- graffiti_sp.ppp %>%
+  Kest(., correction="border") %>%
+  plot()
+
+#just one district
+K <- graffiti_se_sp.ppp %>%
+  Kest(., correction="border") %>%
+  plot()
+```
+
+
+```{r}
+
+#first extract the points from the spatial points data frame
+points_todf <- graffiti_se_sp %>%
+  coordinates(.)%>%
+  as.data.frame()
+
+#now run the dbscan analysis
+points_todf_DBSCAN <- points_todf %>%
+  fpc::dbscan(.,eps = 50, MinPts = 30)
+
+#based on the knee
+#拐弯处
+#is it useful??
+# points_todf%>%
+#   dbscan::kNNdistplot(., k=20)
+
+#now quickly plot the results
+plot(points_todf_DBSCAN, points_todf, main = "DBSCAN Output", frame = F)
+plot(shp2$geometry, add=T)
+```
+
+
+```{r}
+points_todf<- points_todf %>%
+  mutate(dbcluster=points_todf_DBSCAN$cluster)
+
+tosf <- points_todf%>%
+  st_as_sf(., coords = c("coords.x1", "coords.x2"), 
+                   crs = 7131)%>%
+  filter(dbcluster>0)
+
+ggplot(data = shp_se) +
+  # add the geometry of the community areas
+  geom_sf() +
+  # add the geometry of the points - i have had to set the data here to add the layer
+  geom_sf(data = tosf, size = 0.4, colour=tosf$dbcluster, fill=tosf$dbcluster)
+```
+
+```{r}
+library(tmap)
+library(sf)
+
+#tmaptools::palette_explorer()
+library(RColorBrewer)
+library(tmaptools)
+
+colours<- get_brewer_pal("Set1", n = 19)
+
+tmap_mode("plot")
+tm_shape(shp_se) +
+  tm_polygons(col = NA, alpha = 0.5) +
+tm_shape(tosf) +
+  tm_dots(col = "dbcluster",  palette = colours, style = "cat")
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+

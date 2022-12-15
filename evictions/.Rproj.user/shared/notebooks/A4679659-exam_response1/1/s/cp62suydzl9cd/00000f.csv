@@ -1,0 +1,43 @@
+"0","evictions_points <- read_csv(""/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/Evictions.csv"", na="" "")"
+"2","Warning: [38;5;232mOne or more parsing issues, call `problems()` on your data frame for details, e.g.:
+  dat <- vroom(...)
+  problems(dat)[39m"
+"2","[1mRows: [22m[34m70912[39m [1mColumns: [22m[34m20[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (12): Court Index Number, Docket Number, Eviction Address, Eviction Apartment Number, Executed Dat...
+[32mdbl[39m  (8): Eviction Postcode, Latitude, Longitude, Community Board, Council District, Census Tract, BIN..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","community_areas <- st_read(""/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/Community Districts/geo_export_dab78e36-b0aa-413a-a148-65b921cb9b8a.shp"")"
+"1","Reading layer `"
+"1","geo_export_dab78e36-b0aa-413a-a148-65b921cb9b8a"
+"1","' from data source "
+"1","
+"
+"1","  "
+"1","`"
+"1","/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/Community Districts/geo_export_dab78e36-b0aa-413a-a148-65b921cb9b8a.shp"
+"1","' "
+"1","
+"
+"1","  "
+"1","using driver `"
+"1","ESRI Shapefile"
+"1","'"
+"1","
+"
+"1","Simple feature collection with 71 features and 3 fields"
+"1","
+"
+"1","Geometry type: MULTIPOLYGON
+"
+"1","Dimension:     XY
+"
+"1","Bounding box:  "
+"1","xmin: -74.25559 ymin: 40.49613 xmax: -73.70001 ymax: 40.91553"
+"1","
+"
+"1","Geodetic CRS:  WGS84(DD)
+"

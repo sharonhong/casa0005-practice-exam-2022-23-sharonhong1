@@ -1,0 +1,108 @@
+---
+title: "test1"
+author: "sharon"
+date: "2022-11-19"
+output: html_document
+---
+
+```{r}
+#library a bunch of packages we may (or may not) use 
+library(tidyverse)
+library(tmap)
+library(geojsonio)
+library(plotly)
+library(rgdal)
+library(broom)
+library(mapview)
+library(crosstalk)
+library(sf)
+library(sp)
+library(spdep)
+library(car)
+library(fs)
+library(janitor)
+library(spatstat)
+
+```
+
+
+```{r}
+nyc <- st_read("/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/Community Districts/geo_export_dab78e36-b0aa-413a-a148-65b921cb9b8a.shp") %>%
+  st_transform(., 27700)
+# nyc <- st_read(here::here("Community Districts","geo_export_dab78e36-b0aa-413a-a148-65b921cb9b8a.shp")) %>%
+# st_transform(., 27700)
+
+raw_data <- read.csv("/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/Evictions.csv",
+  na = c("", "NA", "n/a")) %>%
+  clean_names()
+
+data_select <- raw_data %>% 
+    select(executed_date,residential_commercial,borough,eviction_postcode,eviction_legal_possession,latitude,longitude)
+
+#raw_data <- read.csv(here::here("Evictions.csv")) 
+
+#check all of the columns have been read in correctly
+Datatypelist <- data_select %>% 
+  summarise_all(class) %>%
+  pivot_longer(everything(), 
+               names_to="All_variables", 
+               values_to="Variable_class")
+
+Datatypelist
+
+#delete rows with na, use na.omit()
+#st_as_sf lat,lon to points
+data <- data_select %>% 
+  na.omit() %>%
+  st_as_sf(., coords = c("longitude", "latitude"), 
+                   crs = 4326) %>%
+    st_transform(., 27700)
+
+#data from 2017-2022
+#filter data in 2017
+data_2017 <- data %>%
+  filter(str_detect(executed_date,"2017"))
+
+data_res <- data_2017 %>%
+  filter(residential_commercial=="Residential")
+#19235
+
+
+data_com <- data_2017 %>%
+  filter(residential_commercial=="Commercial")
+#1144
+
+tmap_mode("plot")
+tm_shape(nyc) +
+  tm_polygons(col = NA, alpha = 0.5) +
+tm_shape(data) +
+  tm_dots(col = "blue")
+```
+
+
+```{r}
+#now set a window as the borough boundary
+#library spatstat
+window <- as.owin(nyc)
+plot(window)
+```
+
+```{r}
+#create a sp object
+data_com <- data_com %>%
+  as(., 'Spatial')
+
+#create a ppp object
+#？？
+data_com.ppp <- ppp(x=data_com@coords[,1],
+                          y=data_com@coords[,2],
+                          window=window)
+                  
+data_com@coords[,1]
+```
+
+
+```{r}
+
+```
+

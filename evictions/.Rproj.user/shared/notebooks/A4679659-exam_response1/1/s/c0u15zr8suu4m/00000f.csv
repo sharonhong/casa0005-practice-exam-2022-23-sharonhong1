@@ -1,0 +1,98 @@
+"0","library(tidyverse)"
+"0","library(tmap)"
+"0","library(geojsonio)"
+"2","Registered S3 method overwritten by 'geojsonsf':
+  method        from   
+  print.geojson geojson
+"
+"2","
+载入程辑包：‘geojsonio’
+
+"
+"2","The following object is masked from ‘package:base’:
+
+    pretty
+
+"
+"0","library(plotly)"
+"2","Registered S3 method overwritten by 'data.table':
+  method           from
+  print.data.table     
+"
+"2","
+载入程辑包：‘plotly’
+
+"
+"2","The following object is masked from ‘package:ggplot2’:
+
+    last_plot
+
+"
+"2","The following object is masked from ‘package:stats’:
+
+    filter
+
+"
+"2","The following object is masked from ‘package:graphics’:
+
+    layout
+
+"
+"0","library(rgdal)"
+"2","Please note that rgdal will be retired by the end of 2023,
+plan transition to sf/stars/terra functions using GDAL and PROJ
+at your earliest convenience.
+
+rgdal: version: 1.5-32, (SVN revision 1176)
+Geospatial Data Abstraction Library extensions to R successfully loaded
+Loaded GDAL runtime: GDAL 3.4.2, released 2022/03/08
+Path to GDAL shared files: /Library/Frameworks/R.framework/Versions/4.2/Resources/library/rgdal/gdal
+GDAL binary built with GEOS: FALSE 
+Loaded PROJ runtime: Rel. 8.2.1, January 1st, 2022, [PJ_VERSION: 821]
+Path to PROJ shared files: /Library/Frameworks/R.framework/Versions/4.2/Resources/library/rgdal/proj
+PROJ CDN enabled: FALSE
+Linking to sp version:1.5-0
+To mute warnings of possible GDAL/OSR exportToProj4() degradation,
+use options(""rgdal_show_exportToProj4_warnings""=""none"") before loading sp or rgdal.
+"
+"0","library(broom)"
+"0","library(mapview)"
+"0","library(crosstalk)"
+"0","library(sf)"
+"0","library(sp)"
+"0","library(spdep)"
+"2","载入需要的程辑包：spData
+"
+"2","To access larger datasets in this package, install the spDataLarge package with:
+`install.packages('spDataLarge', repos='https://nowosad.github.io/drat/', type='source')`
+"
+"0","library(car)"
+"2","载入需要的程辑包：carData
+"
+"2","
+载入程辑包：‘car’
+
+"
+"2","The following object is masked from ‘package:spatstat.model’:
+
+    bc
+
+"
+"2","The following object is masked from ‘package:spatstat.geom’:
+
+    ellipse
+
+"
+"2","The following object is masked from ‘package:dplyr’:
+
+    recode
+
+"
+"2","The following object is masked from ‘package:purrr’:
+
+    some
+
+"
+"0","library(fs)"
+"0","library(janitor)"
+"0","library(spatstat)"

@@ -1,0 +1,7 @@
+"0","tmap_mode(""plot"")"
+"2","tmap mode set to plotting
+"
+"0","tm_shape(community_areas) +"
+"0","  tm_polygons(col = NA, alpha = 0.5) +"
+"0","tm_shape(points) +"
+"0","  tm_dots(col = ""blue"")"

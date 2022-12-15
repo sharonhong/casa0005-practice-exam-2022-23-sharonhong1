@@ -1,0 +1,706 @@
+---
+title: "test2"
+author: "sharon"
+date: "2022-12-08"
+output: html_document
+---
+---
+title: "Name: Hong Shiyun"
+author: Hong Shiyun
+- |
+    | Student number: 22036471
+date: "`r format(Sys.time(), '%X, %d %B, %Y')`"
+output: html_document
+---
+# Originality declaration  
+
+I, [**Hong Shiyun**], confirm that the work presented in this assessment is my own. Where information has been derived from other sources, I confirm that this has been indicated in the work.
+
+date: `r format(Sys.time(), '%d %B, %Y')`
+"2022-11-19 00:09:56 GMT"
+
+# Start your response here
+
+## Initial project scope
+
+
+
+# library packages
+```{r}
+#library a bunch of packages we may (or may not) use 
+library(tidyverse)
+library(tmap)
+library(geojsonio)
+library(plotly)
+library(rgdal)
+library(broom)
+library(mapview)
+library(crosstalk)
+library(sf)
+library(sp)
+library(spdep)
+library(car)
+library(fs)
+library(janitor)
+```
+
+# Read in, Transforming and Wrangling data
+## graffiti data
+```{r}
+graffiti <- read_csv("/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/sf/Graffiti.csv")
+
+
+graffiti2<-graffiti%>%
+  separate(., Point, c("latitude", "longitude"), sep = ",")
+
+graffiti2$latitude<-parse_number(graffiti2$latitude) 
+graffiti2$longitude<-parse_number(graffiti2$longitude) 
+
+graffiti3<- graffiti2%>%
+  filter(latitude !=	0 )%>%
+  filter(longitude != 0)%>%
+  st_as_sf(., coords = c("longitude", "latitude"), 
+                   crs = 4326) %>%
+  st_transform(., crs=7131)
+
+
+#epsg 7131
+#Spatial referencing in and around city and county of San Francisco.
+shp <- st_read("/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/sf/Census 2010_ Tracts for San Francisco/geo_export_57df045b-fa72-4b2b-ba57-af6b622bb0c8.shp") %>%
+  st_transform(., 7131)
+
+#filter something
+graffiti4<- graffiti3%>%
+filter(str_detect(Closed, "2019")) %>%
+  #filter(str_detect(`Request Type`, "Building"))%>%
+  st_transform(., crs=7131)
+
+#clip
+# spatial filter points within the san fran polygon (sf object)
+#must use st_intersects?
+graffiti_within <- graffiti4[shp, ,op=st_intersects]
+
+
+tmap_mode("plot")
+tm_shape(shp) +
+  tm_polygons(col = NA, alpha = 0.5) +
+tm_shape(graffiti4) +
+  tm_dots(col = "blue")
+```
+
+## join and calculate the point density
+```{r}
+
+# test1 <- shp %>% st_join(graffiti4)
+
+#it works, why we cannot use this??
+points_sf_joined <- shp %>% 
+    st_join(graffiti4)%>%
+    add_count(geoid10)%>%
+    janitor::clean_names()%>%
+    #calculate area
+    mutate(area=st_area(.))%>%
+    #then density of the points per ward
+    mutate(density=n/area)%>%
+    dplyr::select(geoid10 , neighborhood,area, density)%>%
+    group_by(geoid10) %>%         
+  summarise(geoid10 = first(geoid10),
+          neighborhood= first(neighborhood),
+          density= first(density),
+          area= first(area))
+
+# test = st_intersects(shp, graffiti4)
+
+points_sf_joined2<-shp%>%
+  mutate(n = lengths(st_intersects(., graffiti4)))%>%
+  janitor::clean_names()%>%
+    #calculate area
+    mutate(area=st_area(.))%>%
+    #then density of the points per ward
+    mutate(density=n/area)
+
+```
+
+## addtional data 1 _ health data
+```{r}
+
+#read health data
+census_health <- read_csv("/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/sf/ACSST5Y2019.S2701_2022-12-14T122114/ACSST5Y2019.S2701-Data.csv", skip=1, na = c("", "NA", "n/a"), 
+                               locale = locale(encoding = 'Latin1'), 
+                               col_names = TRUE)
+
+census_health2 <- census_health%>%
+  clean_names()
+
+
+```
+
+
+```{r}
+#str_sub
+#Extract and replace substrings from a character vector.
+census_health3 <-census_health2 %>%
+  select(geography, geographic_area_name, estimate_percent_insured_civilian_noninstitutionalized_population)%>%
+  mutate(tract = str_sub(geography, start = 10, end=20))
+
+points_sf_joined_join_health_insur <- points_sf_joined2 %>%
+  left_join(., census_health3,
+            by=c("geoid10" = "tract"))
+
+# Datatypelist <- points_sf_joined_join_health_insur %>% as.tibble() %>%
+#   summarise_all(class) %>%
+#   pivot_longer(everything(), 
+#                names_to="All_variables", 
+#                values_to="Variable_class")
+# 
+# Datatypelist
+```
+
+## addtional data 2 _ income data
+```{r}
+
+#add income data
+census_income <- read_csv("/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/sf/ACSST5Y2019.S1901_2022-12-10T113010/ACSST5Y2019.S1901-Data.csv", skip=1,na = c("", "NA", "n/a","-"), 
+                               locale = locale(encoding = 'Latin1'), 
+                               col_names = TRUE)
+ 
+  
+census_income2 <- census_income%>%
+  clean_names()
+ 
+
+census_income3 <-census_income2 %>%
+  select(geography, geographic_area_name, estimate_households_mean_income_dollars, estimate_households_median_income_dollars, estimate_households_total)%>%
+  mutate(tract = str_sub(geography, start = 10, end=20))
+```
+
+
+```{r}
+points_sf_joined_join_health_insur_income <- points_sf_joined_join_health_insur %>%
+  left_join(., census_income3,
+            by=c("geoid10" = "tract"))
+
+Datatypelist <- points_sf_joined_join_health_insur_income %>% as.tibble() %>%
+  summarise_all(class) %>%
+  pivot_longer(everything(), 
+               names_to="All_variables", 
+               values_to="Variable_class")
+
+Datatypelist
+```
+
+## addtional data 3 _ poverty data
+```{r}
+#always use this to read data
+# LondonWardProfiles <- read_csv("https://data.london.gov.uk/download/ward-profiles-and-atlas/772d2d64-e8c6-46cb-86f9-e52b4c7851bc/ward-profiles-excel-version.csv", 
+#                                na = c("", "NA", "n/a"), 
+#                                locale = locale(encoding = 'Latin1'), 
+#                                col_names = TRUE)
+
+#add poverty data
+census_poverty <- read_csv("/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/sf/ACSST5Y2019.S1701_2022-12-10T120426/ACSST5Y2019.S1701-Data.csv", skip=1,
+                           na = c("", "NA", "n/a","-"), 
+                               locale = locale(encoding = 'Latin1'), 
+                               col_names = TRUE)
+ 
+  
+census_poverty2 <- census_poverty %>%
+  clean_names()
+ 
+
+census_poverty3 <-census_poverty2 %>%
+  select(geography, geographic_area_name, estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined)%>%
+  mutate(tract = str_sub(geography, start = 10, end=20))
+
+points_sf_joined_join_health_insur_income_poverty <- points_sf_joined_join_health_insur_income %>%
+  left_join(., census_poverty3,
+            by=c("geoid10" = "tract"))
+
+# Datatypelist <- Regressiondata %>% 
+#   summarise_all(class) %>%
+#   pivot_longer(everything(), 
+#                names_to="All_variables", 
+#                values_to="Variable_class")
+# 
+# Datatypelist
+```
+
+## addtional data 4 _ education data
+```{r}
+#add education data
+census_edu <- read_csv("/Users/hongshy/Desktop/casa0005-practice-exam-2022-23-sharonhong/sf/ACSST5Y2019.S1501_2022-12-10T122241/ACSST5Y2019.S1501-Data.csv", skip=1, na = c("", "NA", "n/a","-"), 
+                               locale = locale(encoding = 'Latin1'), 
+                               col_names = TRUE)
+ 
+  
+census_edu2 <- census_edu %>%
+  clean_names()
+ 
+# estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher
+# estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency
+# Estimate!!Percent!!AGE BY EDUCATIONAL ATTAINMENT!!Population 18 to 24 years!!High school graduate (includes equivalency)
+
+census_edu3 <-census_edu2 %>%
+  select(geography, geographic_area_name, estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher,estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency)%>%
+  mutate(tract = str_sub(geography, start = 10, end=20))
+
+points_sf_joined_join_health_insur_income_poverty_edu <- points_sf_joined_join_health_insur_income_poverty %>%
+  left_join(., census_edu3,
+            by=c("geoid10" = "tract"))
+```
+
+
+
+
+## Preparing data for analysis
+```{r}
+Regressiondata <- points_sf_joined_join_health_insur_income_poverty_edu
+
+Regressiondata$density <- as.numeric(Regressiondata$density) 
+Regressiondata$estimate_percent_insured_civilian_noninstitutionalized_population <- as.numeric(Regressiondata$estimate_percent_insured_civilian_noninstitutionalized_population) 
+Regressiondata$estimate_households_mean_income_dollars <- as.numeric(Regressiondata$estimate_households_mean_income_dollars) 
+Regressiondata$estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined <- as.numeric(Regressiondata$estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined)
+Regressiondata$estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher <- as.numeric(Regressiondata$estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher) 
+Regressiondata$estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency <- as.numeric(Regressiondata$estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency) 
+
+#check data type
+Datatypelist <- Regressiondata %>% as.tibble() %>%
+  summarise_all(class) %>%
+  pivot_longer(everything(),
+               names_to="All_variables",
+               values_to="Variable_class")
+
+Datatypelist
+```
+
+## analysis 
+# ols
+```{r}
+# there is educational data missing in 2 rows, try to drop them first
+
+#you can only check data type in tibble
+#use as_tibble(.)
+
+#delete rows with na
+#otherwise number of rows cannot be match
+Regressiondata2 <- subset(Regressiondata, geoid10 != "06075990100")
+Regressiondata2 <- subset(Regressiondata2, geoid10 != "06075980401")
+Regressiondata2 <- subset(Regressiondata2, geoid10 != "06075980200")
+Regressiondata2 <- subset(Regressiondata2, geoid10 != "06075980300")
+
+
+#select data before doing regression
+
+Regressiondata3 <- Regressiondata2 %>%
+  dplyr::select(density,geoid10,
+     estimate_percent_insured_civilian_noninstitutionalized_population,
+     estimate_households_mean_income_dollars,
+       estimate_households_total,
+     estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined,
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher,
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency)
+
+
+#run the lm model
+model1 <- Regressiondata3 %>%
+  lm(density ~ 
+     estimate_percent_insured_civilian_noninstitutionalized_population +
+     estimate_households_mean_income_dollars +
+     estimate_households_total +
+     estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined +
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher +
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency, 
+     data=.)
+
+tidy(model1)
+summary(model1)
+glance(model1)
+
+```
+
+# there are 5 Assumptions Underpinning Linear Regression
+```{r Assumption 1}
+library(units)
+#There is a linear relationship between the dependent and independent variables
+#check the distribution of these variables first
+
+
+# ggplot(Regressiondata3,aes()) +
+#   geom_histogram(aes(y = ..density..),
+#                  binwidth = 0.3) + 
+#   geom_density(colour="red",
+#                size=1, 
+#                adjust=1)
+
+ggplot(Regressiondata3,aes(x=`estimate_percent_insured_civilian_noninstitutionalized_population`)) +
+  geom_histogram(aes(y = ..density..),
+                 binwidth = 0.5) + 
+  geom_density(colour="red",
+               size=1, 
+               adjust=1)
+
+
+```
+```{r}
+symbox(~estimate_percent_insured_civilian_noninstitutionalized_population, 
+       Regressiondata3, 
+       na.rm=T,
+       powers=seq(-3,3,by=.5))
+
+ggplot(Regressiondata3, aes(x=(estimate_percent_insured_civilian_noninstitutionalized_population))) + 
+  geom_histogram()
+```
+
+
+```{r assumption 2}
+#The residuals in your model should be normally distributed
+#save the residuals into your dataframe
+
+model_data <- model1 %>%
+  augment(., Regressiondata3)
+
+#plot residuals
+model_data%>%
+dplyr::select(.resid)%>%
+  pull()%>%
+  qplot()+ 
+  geom_histogram() 
+```
+
+
+```{r Assumption 3 }
+#No Multicolinearity in the independent variables
+#Another way that we can check for Multicolinearity is to examine the VIF for the model. If we have VIF values for any variable exceeding 10, then we may need to worry and perhaps remove that variable from the analysis:
+
+vif(model1)
+
+```
+
+```{r Assumption 4}
+#Homoscedasticity
+
+#print some model diagnositcs. 
+par(mfrow=c(2,2))    #plot to 2 by 2 array
+plot(model1)
+```
+
+```{r Assumption 5}
+#If you are running a regression model on data that do not have explicit space or time dimensions, then the standard test for autocorrelation would be the Durbin-Watson test.
+
+
+#run durbin-watson test
+DW <- durbinWatsonTest(model2)
+tidy(DW)
+
+#however i'm using spatial data, so check the moran's i of residual
+```
+
+## new a weight matrix
+```{r new a weight matrix}
+
+#First calculate the centroids of all Wards in London
+
+coordsW <- shp3 %>%
+  st_centroid() %>%
+  st_geometry()
+  
+plot(coordsW,axes=TRUE)
+
+#create a neighbours list
+LWard_nb <- shp3 %>%
+  poly2nb(., queen=T)
+
+#plot them
+plot(LWard_nb, st_geometry(coordsW), col="red")
+#add a map underneath
+plot(shp3$geometry, add=T)
+
+#create a spatial weights matrix from these weights
+# Lward.lw <- LWard_nb %>%
+#   nb2mat(., style="B")
+
+Lward.lw <- LWard_nb %>%
+  nb2listw(., style="C")
+
+#W
+
+#sum(Lward.lw)
+#1212
+```
+
+```{r check the moran's i of residual}
+#check the moran's i of residual
+#calculate the residuals
+shp2 <- subset(shp2, geoid10 != "06075990100")
+shp2 <- subset(shp2, geoid10 != "06075980401")
+
+shp3 <- subset(shp2, geoid10 != "06075980200")
+shp3 <- subset(shp3, geoid10 != "06075980300")
+
+shp3 <- shp3 %>%
+  mutate(model1resids = residuals(model1))
+#the residuals are all 0
+
+#now plot the residuals
+tmap_mode("view")
+qtm(shp3, fill = "model1resids")
+
+tm_shape(shp3) +
+  tm_polygons("model1resids",
+              palette = "RdYlBu") 
+
+moran_resids <- shp3 %>%
+  pull(model1resids) %>%
+  as.vector()%>%
+  moran.test(., Lward.lw)
+
+moran_resids
+
+```
+
+## global moran
+```{r moran's i}
+#moran's i
+points_sf_joined_join_health_insur_income_poverty_edu2 <- subset(points_sf_joined_join_health_insur_income_poverty_edu, geoid10 != "06075990100")
+points_sf_joined_join_health_insur_income_poverty_edu2 <- subset(points_sf_joined_join_health_insur_income_poverty_edu2, geoid10 != "06075980401")
+points_sf_joined_join_health_insur_income_poverty_edu2 <- subset(points_sf_joined_join_health_insur_income_poverty_edu2, geoid10 != "06075980200")
+points_sf_joined_join_health_insur_income_poverty_edu2 <- subset(points_sf_joined_join_health_insur_income_poverty_edu2, geoid10 != "06075980300")
+
+
+I_LWard_Global_Density <- 
+  points_sf_joined_join_health_insur_income_poverty_edu2 %>%
+  pull(density) %>%
+  as.vector()%>%
+  moran.test(., Lward.lw)
+
+I_LWard_Global_Density
+
+# Moran I statistic       Expectation          Variance 
+#       0.462240046      -0.005154639       0.001411394 
+```
+
+```{r Geary's C}
+#Geary's C
+C_LWard_Global_Density <- points_sf_joined_join_health_insur_income_poverty_edu2 %>%
+  pull(density) %>%
+  as.vector()%>%
+  geary.test(., Lward.lw)
+
+C_LWard_Global_Density
+
+# Geary C statistic       Expectation          Variance 
+#        0.60619062        1.00000000        0.01392034 
+```
+
+
+```{r Getis Ord}
+#Getis Ord
+G_LWard_Global_Density <- 
+  points_sf_joined_join_health_insur_income_poverty_edu2 %>%
+  pull(density) %>%
+  as.vector()%>%
+  globalG.test(., Lward.lw)
+
+G_LWard_Global_Density
+
+# Global G statistic        Expectation           Variance 
+#       1.073609e-02       5.154639e-03       3.042724e-07 
+```
+
+## local moran
+```{r localmoran LISA}
+#use the localmoran function to generate I for each ward in the city
+
+I_LWard_Local_Density <- points_sf_joined_join_health_insur_income_poverty_edu2 %>%
+  pull(density) %>%
+  as.vector()%>%
+  localmoran(., Lward.lw)%>%
+  as_tibble()
+
+#what does the output (the localMoran object) look like?
+slice_head(I_LWard_Local_Density, n=5)
+```
+
+
+```{r}
+points_sf_joined_join_health_insur_income_poverty_edu3 <- points_sf_joined_join_health_insur_income_poverty_edu2 %>%
+  mutate(density_I =as.numeric(I_LWard_Local_Density$Ii))%>%
+  mutate(density_Iz =as.numeric(I_LWard_Local_Density$Z.Ii))
+
+breaks1<-c(-1000,-2.58,-1.96,-1.65,1.65,1.96,2.58,1000)
+
+library(RColorBrewer)
+MoranColours<- rev(brewer.pal(8, "RdGy"))
+
+tm_shape(points_sf_joined_join_health_insur_income_poverty_edu3) +
+    tm_polygons("density_Iz",
+        style="fixed",
+        breaks=breaks1,
+        palette=MoranColours,
+        midpoint=NA,
+        title="Local Moran's I, grafftti in sf")
+
+
+```
+
+
+```{r localG}
+Gi_LWard_Local_Density <- points_sf_joined_join_health_insur_income_poverty_edu3 %>%
+  pull(density) %>%
+  as.vector()%>%
+  localG(., Lward.lw)
+
+head(Gi_LWard_Local_Density)
+
+points_sf_joined_join_health_insur_income_poverty_edu3 <- points_sf_joined_join_health_insur_income_poverty_edu3 %>% mutate(density_G = as.numeric(Gi_LWard_Local_Density))
+
+library(RColorBrewer)
+
+GIColours<- rev(brewer.pal(8, "RdBu"))
+
+#now plot on an interactive map
+tm_shape(points_sf_joined_join_health_insur_income_poverty_edu3) +
+    tm_polygons("density_G",
+        style="fixed",
+        breaks=breaks1,
+        palette=GIColours,
+        midpoint=NA,
+        title="Gi*, grafftti in sf")
+```
+
+## spatial lag
+```{r}
+library(spatialreg)
+
+LWard_nb <- Regressiondata3 %>%
+  poly2nb(., queen=T)
+
+model_queen <- lagsarlm(density ~ estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined + estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher, data = Regressiondata3, 
+               nb2listw(LWard_nb, style="C",zero.policy = TRUE), 
+               method = "eigen")
+
+#something wrong with one or more iv                        
+# slag_dv_model2_queen <- lagsarlm(Regressiondata3$density ~ estimate_percent_insured_civilian_noninstitutionalized_population + estimate_households_mean_income_dollars + estimate_households_total + estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined + estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher + estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency, data = Regressiondata3, 
+#                nb2listw(LWard_nb, style="C",zero.policy = TRUE), 
+#                method = "eigen")
+
+
+tidy(model_queen)
+
+#Error in solve.default(-(mat), tol.solve = tol.solve) :
+#It is computationally singular: inverted condition number =5.69083e-17
+#when i check this error in google, it says: The matrix you calculated may have a column or row of zeros, making it impossible to solve. Data problem or the other way around
+```
+
+## spatial error
+```{r}
+library(spatialreg)
+
+Lward.lw <- LWard_nb %>%
+  nb2listw(., style="C")
+
+# Lward.lw <- LWard_nb %>%
+#   nb2mat(., style="B")
+
+serror_dv_model2_queen <- errorsarlm(density ~ 
+     estimate_percent_insured_civilian_noninstitutionalized_population +
+     estimate_households_mean_income_dollars +
+     estimate_households_total +
+     estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined +
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher +
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency, 
+               data = Regressiondata3, 
+               Lward.lw, 
+               method = "eigen")
+
+tidy(serror_dv_model2_queen)
+
+
+```
+
+## gwr
+```{r}
+#gwr
+library(spgwr)
+
+coordsW2 <- st_coordinates(coordsW)
+
+Regressiondata4 <- cbind(Regressiondata3,coordsW2)
+
+GWRbandwidth <- gwr.sel(density ~ 
+     estimate_percent_insured_civilian_noninstitutionalized_population +
+     estimate_households_mean_income_dollars +
+     estimate_households_total +
+     estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined +
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher +
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency, 
+                  data = Regressiondata4, 
+                        coords=cbind(Regressiondata4$X, Regressiondata4$Y),
+                  adapt=T)
+
+GWRbandwidth
+#0.06508368
+
+#run the gwr model
+gwr.model = gwr(density ~ 
+     estimate_percent_insured_civilian_noninstitutionalized_population +
+     estimate_households_mean_income_dollars +
+     estimate_households_total +
+     estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined +
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher +
+     estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency, 
+                  data = Regressiondata4, 
+                coords=cbind(Regressiondata4$X,Regressiondata4$Y), 
+                adapt=GWRbandwidth,
+                #matrix output
+                hatmatrix=TRUE,
+                #standard error
+                se.fit=TRUE)
+
+#print the results of the model
+gwr.model
+
+# AICc (GWR p. 61, eq 2.33; p. 96, eq. 4.21): -2029.52 
+# AIC (GWR p. 96, eq. 4.22): -2108.288 
+# Residual sum of squares: 0.0001606012 
+# Quasi-global R2: 0.5905566 
+
+
+```
+
+
+```{r}
+#attach coefficients to original SF
+results <- as.data.frame(gwr.model$SDF)
+names(results)
+
+Regressiondata_result <- Regressiondata2 %>%
+  mutate(coef1 = estimate_percent_insured_civilian_noninstitutionalized_population,
+     coef2 = estimate_households_mean_income_dollars,
+     coef3 = estimate_households_total,
+     coef4 = estimate_percent_below_poverty_level_population_for_whom_poverty_status_is_determined,
+     coef5 = estimate_percent_age_by_educational_attainment_population_18_to_24_years_bachelors_degree_or_higher,
+     coef6 = estimate_percent_age_by_educational_attainment_population_18_to_24_years_high_school_graduate_includes_equivalency)
+             
+
+tm_shape(Regressiondata_result) +
+  tm_polygons(col = "coef1", 
+              palette = "RdBu", 
+              alpha = 0.5)
+```
+
+```{r}
+#To calculate standard errors
+#run the significance test
+sigTest = abs(gwr.model$SDF$"estimate_percent_insured_civilian_noninstitutionalized_population")-2 * gwr.model$SDF$"estimate_percent_insured_civilian_noninstitutionalized_population_se"
+
+
+#store significance results
+Regressiondata_result <- Regressiondata_result %>%
+  mutate(GWRUnauthSig = sigTest)
+
+tm_shape(Regressiondata_result) +
+  tm_polygons(col = "GWRUnauthSig", 
+              palette = "RdYlBu")
+```
+
